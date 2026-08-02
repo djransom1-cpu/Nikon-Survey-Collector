@@ -193,21 +193,89 @@ export class NikonProtocolEngine {
     };
   }
 
-  // Parse Raw String Output from Nikon NPL-322+ Total Station
+  // Helper to convert Nikon DDD.MMSS format (e.g. 124.3512 -> 124°35'12") into Decimal Degrees
+  static nikonDmsToDeg(val) {
+    if (isNaN(val) || val === 0) return 0;
+    const sign = val < 0 ? -1 : 1;
+    const absVal = Math.abs(val);
+    const d = Math.floor(absVal);
+    const minSec = (absVal - d) * 100;
+    const m = Math.floor(minSec + 0.00001);
+    const s = (minSec - m) * 100;
+
+    // Check if format is DDD.MMSS
+    if (m < 60 && s < 60) {
+      return sign * (d + (m / 60) + (s / 3600));
+    }
+    return val; // Already decimal degrees
+  }
+
+  // Parse Raw String Output from Nikon NPL-322+ Total Station (AP-700, CSV, and Raw Shots)
   parseNikonRawString(rawStr) {
     if (!rawStr) return null;
-    const parts = rawStr.split(',').map(s => s.trim());
+    const cleanStr = rawStr.trim();
+    if (cleanStr.length === 0) return null;
 
-    if (parts.length >= 6) {
+    const parts = cleanStr.split(',').map(s => s.trim());
+
+    // Format 1: Nikon AP-700 Side Shot: SS, ptId, HT, SD, HA, VA, [code/date]
+    if (parts[0] === 'SS' && parts.length >= 6) {
+      const ptId = parts[1];
+      const HT_ft = parseFloat(parts[2]) || 5.0;
+      const SD_ft = parseFloat(parts[3]) || 0;
+      const HA_raw = parseFloat(parts[4]) || 0;
+      const VA_raw = parseFloat(parts[5]) || 90;
+      const code = parts[6] || 'TOPO';
+
       return {
-        pointId: parts[0],
-        HA_deg: parseFloat(parts[1]) || 0,
-        VA_deg: parseFloat(parts[2]) || 90,
-        SD_ft: parseFloat(parts[3]) || 0,
-        HT_ft: parseFloat(parts[4]) || 5.0,
-        code: parts[5] || 'TOPO'
+        pointId: ptId,
+        HA_deg: NikonProtocolEngine.nikonDmsToDeg(HA_raw),
+        VA_deg: NikonProtocolEngine.nikonDmsToDeg(VA_raw),
+        SD_ft,
+        HT_ft,
+        code
       };
     }
+
+    // Format 2: Direct 5 or 6 field CSV: ptId, HA, VA, SD, HT, code OR ptId, SD, HA, VA, HT, code
+    if (parts.length >= 4) {
+      // Check if parts[0] is header or point ID
+      let startIdx = (isNaN(parseFloat(parts[0])) && parts.length >= 5) ? 1 : 0;
+      
+      const ptId = parts[startIdx] || '101';
+      const num1 = parseFloat(parts[startIdx + 1]) || 0;
+      const num2 = parseFloat(parts[startIdx + 2]) || 0;
+      const num3 = parseFloat(parts[startIdx + 3]) || 0;
+      const num4 = parseFloat(parts[startIdx + 4]) || 5.0;
+      const code = parts[startIdx + 5] || 'TOPO';
+
+      // Distinguish if num1 is SD (distance < 10000 and num2 is angle) or HA
+      let SD_ft = num1;
+      let HA_raw = num2;
+      let VA_raw = num3;
+
+      if (num1 > 360 && num3 <= 360) {
+        // num1 is SD
+        SD_ft = num1;
+        HA_raw = num2;
+        VA_raw = num3;
+      } else if (num2 > 360) {
+        // num3 or num1 is angle
+        HA_raw = num1;
+        VA_raw = num2;
+        SD_ft = num3;
+      }
+
+      return {
+        pointId: ptId,
+        HA_deg: NikonProtocolEngine.nikonDmsToDeg(HA_raw),
+        VA_deg: NikonProtocolEngine.nikonDmsToDeg(VA_raw),
+        SD_ft,
+        HT_ft: num4,
+        code
+      };
+    }
+
     return null;
   }
 

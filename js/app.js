@@ -343,6 +343,15 @@ class SurveyApp {
   }
 
   handleNikonRawString(line) {
+    if (!line) return;
+    console.log("Nikon Raw BT Stream:", line);
+
+    const badge = document.getElementById('connStatusBadge');
+    if (badge) {
+      badge.textContent = `🟢 Bluetooth Live Shot Received!`;
+      badge.style.color = 'var(--pass-color)';
+    }
+
     const parsed = this.engine.parseNikonRawString(line);
     if (parsed) {
       this.currentReadout = {
