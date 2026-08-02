@@ -32,7 +32,7 @@ jobs:
           cp -r index.html index.css manifest.json sw.js js icons www/
           rm -rf android
           npx cap add android
-          npx cap copy android
+          npx cap sync android
 
       - name: Apply Native Android Manifest Permissions
         run: |

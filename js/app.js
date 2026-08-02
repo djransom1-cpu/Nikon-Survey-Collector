@@ -201,8 +201,16 @@ class SurveyApp {
   setupModals() {
     // Connection Modal
     const connModal = document.getElementById('connectModal');
-    document.getElementById('connectDeviceBtn').addEventListener('click', () => connModal.classList.remove('hidden'));
+    document.getElementById('connectDeviceBtn').addEventListener('click', () => {
+      connModal.classList.remove('hidden');
+      this.populateAndroidBluetoothDevices();
+    });
     document.getElementById('closeConnectModalBtn').addEventListener('click', () => connModal.classList.add('hidden'));
+
+    const scanBtn = document.getElementById('scanBtDevicesBtn');
+    if (scanBtn) {
+      scanBtn.addEventListener('click', () => this.populateAndroidBluetoothDevices(true));
+    }
 
     const stopSimBtn = document.getElementById('stopSimModalBtn');
     if (stopSimBtn) {
@@ -222,12 +230,41 @@ class SurveyApp {
           try { await this.activePort.close(); } catch(e){}
           this.activePort = null;
         }
+        if (window.bluetoothSerial) {
+          window.bluetoothSerial.disconnect();
+        }
         alert("🛑 Disconnected from all instruments & Simulator turned OFF.");
         connModal.classList.add('hidden');
         return;
       }
 
-      if (connType === 'serial') {
+      if (connType === 'android_spp') {
+        const macAddress = document.getElementById('android-bt-select').value;
+        if (!macAddress) {
+          alert("⚠️ Please select a paired Bluetooth Total Station device from the dropdown, or tap 'Scan'!");
+          return;
+        }
+
+        if (window.bluetoothSerial) {
+          alert(`📡 Connecting Native Bluetooth SPP to Nikon (${macAddress})...`);
+          window.bluetoothSerial.connect(macAddress, () => {
+            this.stopNikonSimulator();
+            document.getElementById('connStatusBadge').textContent = '🟢 Live Bluetooth (Nikon SPP)';
+            document.getElementById('connStatusBadge').style.color = 'var(--pass-color)';
+            alert("🎯 SUCCESS! Linked to Nikon Total Station over Native Bluetooth SPP!");
+
+            window.bluetoothSerial.subscribe('\n', (data) => {
+              this.handleNikonRawString(data);
+            }, (err) => {
+              console.error("BT Subscribe error:", err);
+            });
+          }, (err) => {
+            alert("❌ Bluetooth Connection Failed: " + (err || "Check instrument power & pairing"));
+          });
+        } else {
+          alert("📱 Native Bluetooth SPP is active inside the Android APK. On Windows PC / Web, select 'Windows Serial Port'.");
+        }
+      } else if (connType === 'serial') {
         if ('serial' in navigator) {
           try {
             // Request Web Serial Port (works for both USB cable COM ports & Bluetooth Virtual COM ports!)
@@ -246,20 +283,9 @@ class SurveyApp {
             alert("⚠️ Serial Connection Notice: " + err.message);
           }
         } else {
-          alert("⚠️ Web Serial API is not supported in this browser environment. For Android tablets, make sure you are using Chrome or native Bluetooth serial mode.");
+          alert("⚠️ Web Serial API is not supported in this browser environment. Use Native Android Bluetooth SPP mode above on your tablet!");
         }
-      } else if (connType === 'ble') {
-        if ('bluetooth' in navigator) {
-          try {
-            const device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true });
-            alert(`📶 Bluetooth BLE Device Linked: ${device.name}`);
-          } catch(err) {
-            alert("⚠️ Web Bluetooth BLE restricts classic SPP total stations. Use 'Serial Port (USB / Bluetooth COM)' to connect to your paired Bluetooth COM port!");
-          }
-        } else {
-          alert("⚠️ Web Bluetooth API is not supported in this browser.");
-        }
-      } else {
+      } else if (connType === 'simulator') {
         this.startNikonSimulator();
         alert("⚡ Operating in Nikon NPL-322+ Field Simulator Mode!");
       }
@@ -311,23 +337,56 @@ class SurveyApp {
       buffer = lines.pop(); // Keep incomplete line in buffer
 
       lines.forEach(line => {
-        const parsed = this.engine.parseNikonRawString(line);
-        if (parsed) {
-          this.currentReadout = {
-            HA_deg: parsed.HA_deg,
-            VA_deg: parsed.VA_deg,
-            SD_ft: parsed.SD_ft,
-            HT_ft: parsed.HT_ft,
-            code: parsed.code,
-            HA_dms: NikonProtocolEngine.degToDms(parsed.HA_deg),
-            VA_dms: NikonProtocolEngine.degToDms(parsed.VA_deg)
-          };
-          this.updateReadoutDisplay();
-          if (this.currentMode === 'stakeout') {
-            this.updateStakeoutGuidance();
-          }
-        }
+        this.handleNikonRawString(line);
       });
+    }
+  }
+
+  handleNikonRawString(line) {
+    const parsed = this.engine.parseNikonRawString(line);
+    if (parsed) {
+      this.currentReadout = {
+        HA_deg: parsed.HA_deg,
+        VA_deg: parsed.VA_deg,
+        SD_ft: parsed.SD_ft,
+        HT_ft: parsed.HT_ft,
+        code: parsed.code,
+        HA_dms: NikonProtocolEngine.degToDms(parsed.HA_deg),
+        VA_dms: NikonProtocolEngine.degToDms(parsed.VA_deg)
+      };
+      this.updateReadoutDisplay();
+      if (this.currentMode === 'stakeout') {
+        this.updateStakeoutGuidance();
+      }
+    }
+  }
+
+  populateAndroidBluetoothDevices(showAlert = false) {
+    const select = document.getElementById('android-bt-select');
+    if (!select) return;
+
+    if (window.bluetoothSerial) {
+      window.bluetoothSerial.list((devices) => {
+        select.innerHTML = '';
+        if (!devices || devices.length === 0) {
+          select.innerHTML = '<option value="">⚠️ No paired Bluetooth devices found</option>';
+          if (showAlert) alert("⚠️ No paired Bluetooth devices found in Android Bluetooth settings.");
+          return;
+        }
+
+        devices.forEach(d => {
+          const opt = document.createElement('option');
+          opt.value = d.address; // MAC Address
+          opt.textContent = `📡 ${d.name || 'Nikon Instrument'} (${d.address})`;
+          select.appendChild(opt);
+        });
+
+        if (showAlert) alert(`✅ Found ${devices.length} paired Bluetooth device(s)!`);
+      }, (err) => {
+        console.error("BT List Error:", err);
+      });
+    } else {
+      select.innerHTML = '<option value="">📱 Android Native Bluetooth active inside APK</option>';
     }
   }
 

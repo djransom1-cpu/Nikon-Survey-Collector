@@ -72,11 +72,25 @@
         <div class="form-group">
           <label for="conn-type">Connection Method</label>
           <select id="conn-type" class="form-control" style="font-weight:700;">
-            <option value="serial" selected>🔌 Serial Port (USB Cable OR Paired Bluetooth COM Port)</option>
-            <option value="ble">📶 Bluetooth Low Energy (BLE Scanner)</option>
+            <option value="android_spp" selected>📱 Android Native Bluetooth SPP (Paired Nikon Total Station)</option>
+            <option value="serial">🔌 Windows Serial Port (USB Cable OR Bluetooth COM Port)</option>
             <option value="simulator">⚡ Nikon Instrument Simulator (Demo Mode)</option>
             <option value="disconnect">🛑 Disconnect All / Turn OFF Simulator</option>
           </select>
+        </div>
+
+        <!-- NATIVE ANDROID BLUETOOTH SPP DEVICE SELECTOR -->
+        <div id="group-android-bt" class="form-group" style="background:rgba(37, 99, 235, 0.1); border:1px solid rgba(37, 99, 235, 0.3); padding:0.85rem; border-radius:8px;">
+          <label for="android-bt-select" style="font-weight:700; color:var(--accent-color);">Paired Bluetooth Total Station (Nikon NPL-322+)</label>
+          <div style="display:flex; gap:0.5rem; margin-top:0.3rem;">
+            <select id="android-bt-select" class="form-control" style="font-weight:700; flex:2;">
+              <option value="">-- Tap 'Scan Devices' --</option>
+            </select>
+            <button id="scanBtDevicesBtn" class="btn btn-outline" type="button" style="flex:1; font-size:0.8rem; padding:0.4rem; color:var(--accent-color); border-color:var(--accent-color);">🔍 Scan</button>
+          </div>
+          <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.4rem;">
+            Ensure your Nikon NPL-322+ is turned ON and paired in Android Bluetooth Settings (PIN 0000 or 1234).
+          </div>
         </div>
 
         <div class="form-row" id="group-baud-settings">
