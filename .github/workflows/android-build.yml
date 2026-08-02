@@ -24,7 +24,7 @@ jobs:
           java-version: '17'
 
       - name: Install NPM Dependencies
-        run: npm ci
+        run: npm install
 
       - name: Add & Copy Capacitor Android Platform
         run: |
