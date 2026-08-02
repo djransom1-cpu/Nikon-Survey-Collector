@@ -366,28 +366,66 @@ class SurveyApp {
     if (!select) return;
 
     if (window.bluetoothSerial) {
-      window.bluetoothSerial.list((devices) => {
-        select.innerHTML = '';
-        if (!devices || devices.length === 0) {
-          select.innerHTML = '<option value="">⚠️ No paired Bluetooth devices found</option>';
-          if (showAlert) alert("⚠️ No paired Bluetooth devices found in Android Bluetooth settings.");
-          return;
-        }
+      // 1. Check if Bluetooth is enabled
+      window.bluetoothSerial.isEnabled(() => {
+        // Bluetooth is ON - fetch paired devices
+        window.bluetoothSerial.list((devices) => {
+          select.innerHTML = '';
+          if (!devices || devices.length === 0) {
+            select.innerHTML = '<option value="">⚠️ No paired devices - Scanning nearby...</option>';
+            this.discoverUnpairedBluetoothDevices(showAlert);
+            return;
+          }
 
-        devices.forEach(d => {
-          const opt = document.createElement('option');
-          opt.value = d.address; // MAC Address
-          opt.textContent = `📡 ${d.name || 'Nikon Instrument'} (${d.address})`;
-          select.appendChild(opt);
+          devices.forEach(d => {
+            const opt = document.createElement('option');
+            opt.value = d.address; // MAC Address
+            opt.textContent = `📡 ${d.name || 'Nikon Instrument'} (${d.address})`;
+            select.appendChild(opt);
+          });
+
+          if (showAlert) alert(`✅ Found ${devices.length} paired Bluetooth device(s)!`);
+        }, (err) => {
+          alert("⚠️ Bluetooth Permission Notice: Please allow 'Nearby Devices' or 'Location' permission in Android Settings -> Apps -> Nikon Survey Collector -> Permissions.");
         });
-
-        if (showAlert) alert(`✅ Found ${devices.length} paired Bluetooth device(s)!`);
-      }, (err) => {
-        console.error("BT List Error:", err);
+      }, () => {
+        // Bluetooth is OFF - prompt user to turn it ON
+        window.bluetoothSerial.enable(() => {
+          this.populateAndroidBluetoothDevices(showAlert);
+        }, () => {
+          alert("⚠️ Please turn ON Bluetooth on your tablet!");
+        });
       });
     } else {
       select.innerHTML = '<option value="">📱 Android Native Bluetooth active inside APK</option>';
     }
+  }
+
+  discoverUnpairedBluetoothDevices(showAlert = false) {
+    const select = document.getElementById('android-bt-select');
+    if (!select || !window.bluetoothSerial) return;
+
+    if (showAlert) alert("🔍 Scanning for nearby Bluetooth total stations...");
+
+    window.bluetoothSerial.discoverUnpaired((devices) => {
+      if (devices && devices.length > 0) {
+        select.innerHTML = '';
+        devices.forEach(d => {
+          if (!select.querySelector(`option[value="${d.address}"]`)) {
+            const opt = document.createElement('option');
+            opt.value = d.address;
+            opt.textContent = `📡 ${d.name || 'Nikon Total Station'} (${d.address})`;
+            select.appendChild(opt);
+          }
+        });
+        if (showAlert) alert(`✅ Discovered ${devices.length} nearby Bluetooth device(s)!`);
+      } else {
+        if (showAlert) alert("⚠️ No Bluetooth devices found. Ensure 'Nearby Devices' permission is enabled in Tablet Settings -> Apps -> Nikon Survey Collector -> Permissions.");
+      }
+    }, (err) => {
+      console.log("BT Discover Error:", err);
+      if (showAlert) alert("⚠️ Scan Notice: Please enable 'Location' & 'Nearby Devices' in Android App Settings.");
+    });
   }
 
   downloadFile(content, filename, mimeType) {
