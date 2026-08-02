@@ -246,47 +246,61 @@ class SurveyApp {
         }
 
         if (window.bluetoothSerial) {
-          this.logBtDebug(`Attempting Bluetooth connection to MAC: ${macAddress}...`);
-          window.bluetoothSerial.connect(macAddress, () => {
-            this.stopNikonSimulator();
-            document.getElementById('connStatusBadge').textContent = '🟢 Live Bluetooth (Nikon SPP)';
-            document.getElementById('connStatusBadge').style.color = 'var(--pass-color)';
-            this.logBtDebug(`🟢 CONNECTED to Nikon Total Station (${macAddress}) via Native Bluetooth SPP!`);
-            alert("🎯 SUCCESS! Linked to Nikon Total Station over Native Bluetooth SPP!");
+          const doConnect = (isInsecure = true) => {
+            const connectFn = (isInsecure && window.bluetoothSerial.connectInsecure)
+              ? window.bluetoothSerial.connectInsecure.bind(window.bluetoothSerial)
+              : window.bluetoothSerial.connect.bind(window.bluetoothSerial);
 
-            this.btRawBuffer = '';
+            this.logBtDebug(`Attempting ${isInsecure ? 'Insecure' : 'Secure'} Bluetooth RFCOMM socket to MAC: ${macAddress}...`);
 
-            // 1. Subscribe to Raw Byte Stream
-            window.bluetoothSerial.subscribeRawData((data) => {
-              const bytes = new Uint8Array(data);
-              let str = '';
-              for (let i = 0; i < bytes.length; i++) {
-                str += String.fromCharCode(bytes[i]);
-              }
-              this.handleRawDataChunk(str);
-            }, (err) => {
-              this.logBtDebug(`⚠️ SubscribeRawData error: ${err}`);
-            });
+            connectFn(macAddress, () => {
+              this.stopNikonSimulator();
+              document.getElementById('connStatusBadge').textContent = '🟢 Live Bluetooth (Nikon SPP)';
+              document.getElementById('connStatusBadge').style.color = 'var(--pass-color)';
+              this.logBtDebug(`🟢 CONNECTED to Nikon Total Station (${macAddress}) via Native ${isInsecure ? 'Insecure' : 'Secure'} SPP!`);
+              alert(`🎯 SUCCESS! Linked to Nikon Total Station over ${isInsecure ? 'Insecure' : 'Secure'} Bluetooth SPP!`);
 
-            // 2. Subscribe to Newline
-            window.bluetoothSerial.subscribe('\n', (line) => {
-              this.handleNikonRawString(line);
-            }, (err) => {});
+              this.btRawBuffer = '';
 
-            // 3. Fallback Continuous 500ms Polling Reader to drain any unread bytes from RFCOMM buffer
-            if (this.btPollInterval) clearInterval(this.btPollInterval);
-            this.btPollInterval = setInterval(() => {
-              window.bluetoothSerial.read((data) => {
-                if (data && data.length > 0) {
-                  this.handleRawDataChunk(data);
+              // 1. Subscribe to Raw Byte Stream
+              window.bluetoothSerial.subscribeRawData((data) => {
+                const bytes = new Uint8Array(data);
+                let str = '';
+                for (let i = 0; i < bytes.length; i++) {
+                  str += String.fromCharCode(bytes[i]);
                 }
-              }, (err) => {});
-            }, 500);
+                this.handleRawDataChunk(str);
+              }, (err) => {
+                this.logBtDebug(`⚠️ SubscribeRawData error: ${err}`);
+              });
 
-          }, (err) => {
-            this.logBtDebug(`❌ Bluetooth Connection Failed: ${err}`);
-            alert("❌ Bluetooth Connection Failed: " + (err || "Check instrument power & pairing"));
-          });
+              // 2. Subscribe to Newline
+              window.bluetoothSerial.subscribe('\n', (line) => {
+                this.handleNikonRawString(line);
+              }, (err) => {});
+
+              // 3. Fallback Continuous 500ms Polling Reader to drain any unread bytes from RFCOMM buffer
+              if (this.btPollInterval) clearInterval(this.btPollInterval);
+              this.btPollInterval = setInterval(() => {
+                window.bluetoothSerial.read((data) => {
+                  if (data && data.length > 0) {
+                    this.handleRawDataChunk(data);
+                  }
+                }, (err) => {});
+              }, 500);
+
+            }, (err) => {
+              if (isInsecure) {
+                this.logBtDebug(`⚠️ Insecure connection failed (${err}). Retrying with Secure connection...`);
+                doConnect(false);
+              } else {
+                this.logBtDebug(`❌ Bluetooth Connection Failed: ${err}`);
+                alert("❌ Bluetooth Connection Failed: " + (err || "Check instrument power & pairing"));
+              }
+            });
+          };
+
+          doConnect(true);
         } else {
           alert("📱 Native Bluetooth SPP is active inside the Android APK. On Windows PC / Web, select 'Windows Serial Port'.");
         }
