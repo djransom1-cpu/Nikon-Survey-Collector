@@ -209,20 +209,29 @@ class SurveyApp {
 
       if (connType === 'serial' && 'serial' in navigator) {
         try {
+          // Request Web Serial Port (works for both USB cable COM ports & Bluetooth Virtual COM ports!)
           const port = await navigator.serial.requestPort();
           await port.open({ baudRate: parseInt(document.getElementById('conn-baud').value) || 9600 });
-          alert("🔌 Connected to Nikon Total Station via Web Serial COM Port!");
+          
+          if (this.simTimer) clearInterval(this.simTimer);
+          
+          document.getElementById('connStatusBadge').textContent = '🟢 Connected Live';
+          document.getElementById('connStatusBadge').style.color = 'var(--pass-color)';
+          alert("🔌 Connected to Nikon Total Station Serial / Bluetooth COM Port!");
+
+          this.readSerialStream(port);
         } catch(err) {
-          alert("⚠️ Serial connection error: " + err.message);
+          alert("⚠️ Serial Connection Notice: " + err.message);
         }
-      } else if (connType === 'bluetooth' && 'bluetooth' in navigator) {
+      } else if (connType === 'ble' && 'bluetooth' in navigator) {
         try {
           const device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true });
-          alert(`🔌 Bluetooth SPP Device Linked: ${device.name}`);
+          alert(`📶 Bluetooth BLE Device Linked: ${device.name}`);
         } catch(err) {
-          alert("⚠️ Bluetooth connection error: " + err.message);
+          alert("⚠️ Web Bluetooth BLE restricts classic SPP total stations. Use 'Serial Port (USB / Bluetooth COM)' to connect to your paired Bluetooth COM port!");
         }
       } else {
+        document.getElementById('connStatusBadge').textContent = '⚡ Simulator Mode';
         alert("⚡ Operating in Nikon NPL-322+ Field Simulator Mode!");
       }
 
@@ -254,6 +263,43 @@ class SurveyApp {
       this.downloadFile(rawContent, `${document.getElementById('activeJobName').textContent}.raw`, 'text/plain');
       expModal.classList.add('hidden');
     });
+  }
+
+  async readSerialStream(port) {
+    const textDecoder = new TextDecoderStream();
+    const readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
+    const reader = textDecoder.readable.getReader();
+
+    let buffer = '';
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) {
+        reader.releaseLock();
+        break;
+      }
+      buffer += value;
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // Keep incomplete line in buffer
+
+      lines.forEach(line => {
+        const parsed = this.engine.parseNikonRawString(line);
+        if (parsed) {
+          this.currentReadout = {
+            HA_deg: parsed.HA_deg,
+            VA_deg: parsed.VA_deg,
+            SD_ft: parsed.SD_ft,
+            HT_ft: parsed.HT_ft,
+            code: parsed.code,
+            HA_dms: NikonProtocolEngine.degToDms(parsed.HA_deg),
+            VA_dms: NikonProtocolEngine.degToDms(parsed.VA_deg)
+          };
+          this.updateReadoutDisplay();
+          if (this.currentMode === 'stakeout') {
+            this.updateStakeoutGuidance();
+          }
+        }
+      });
+    }
   }
 
   downloadFile(content, filename, mimeType) {
