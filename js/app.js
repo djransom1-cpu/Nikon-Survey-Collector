@@ -681,6 +681,19 @@ class SurveyApp {
     }
   }
 
+  resetReadoutToStandby() {
+    this.currentReadout = {
+      HA_deg: null,
+      VA_deg: null,
+      SD_ft: null,
+      HT_ft: 5.00,
+      code: 'TOPO',
+      HA_dms: '--° --\' --"',
+      VA_dms: '--° --\' --"'
+    };
+    this.updateReadoutDisplay();
+  }
+
   stopNikonSimulator() {
     if (this.simTimer) {
       clearInterval(this.simTimer);
@@ -699,6 +712,8 @@ class SurveyApp {
       badge.textContent = '🔴 Disconnected';
       badge.style.color = 'var(--fail-color)';
     }
+
+    this.resetReadoutToStandby();
   }
 
   toggleNikonSimulator() {
@@ -713,6 +728,14 @@ class SurveyApp {
 
   updateReadoutDisplay() {
     const r = this.currentReadout;
+    if (!r || r.SD_ft === null || r.SD_ft === undefined) {
+      document.getElementById('disp-ha').textContent = '--° --\' --"';
+      document.getElementById('disp-va').textContent = '--° --\' --"';
+      document.getElementById('disp-sd').textContent = '-- ft (Standby)';
+      document.getElementById('disp-hd').textContent = '-- ft';
+      return;
+    }
+
     document.getElementById('disp-ha').textContent = r.HA_dms;
     document.getElementById('disp-va').textContent = r.VA_dms;
     document.getElementById('disp-sd').textContent = `${r.SD_ft.toFixed(3)} ft`;
