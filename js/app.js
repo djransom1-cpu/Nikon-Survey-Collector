@@ -276,17 +276,25 @@ class SurveyApp {
                 this.btPollInterval = null;
               }
 
-              // Pure Passive Raw Byte Stream Listener
+              // 1. Raw Byte Stream Listener
               window.bluetoothSerial.subscribeRawData((data) => {
-                const bytes = new Uint8Array(data);
-                let str = '';
-                for (let i = 0; i < bytes.length; i++) {
-                  str += String.fromCharCode(bytes[i]);
-                }
-                this.handleRawDataChunk(str);
+                const str = this.parseIncomingDataToChunk(data);
+                if (str) this.handleRawDataChunk(str);
               }, (err) => {
                 this.logBtDebug(`⚠️ SubscribeRawData error: ${err}`);
               });
+
+              // 2. Fallback String Delimiter Listener (catches raw string streams!)
+              window.bluetoothSerial.subscribe('\n', (data) => {
+                const str = this.parseIncomingDataToChunk(data);
+                if (str) this.handleRawDataChunk(str);
+              }, (err) => {});
+
+              // 3. Fallback Carriage Return Listener
+              window.bluetoothSerial.subscribe('\r', (data) => {
+                const str = this.parseIncomingDataToChunk(data);
+                if (str) this.handleRawDataChunk(str);
+              }, (err) => {});
 
             }, (err) => {
               if (isInsecure) {
@@ -390,6 +398,23 @@ class SurveyApp {
       div.textContent = `[${time}] ${msg}`;
       consoleEl.prepend(div);
     }
+  }
+
+  parseIncomingDataToChunk(data) {
+    if (!data) return '';
+    if (typeof data === 'string') return data;
+    if (data instanceof ArrayBuffer) {
+      const bytes = new Uint8Array(data);
+      let str = '';
+      for (let i = 0; i < bytes.length; i++) str += String.fromCharCode(bytes[i]);
+      return str;
+    }
+    if (Array.isArray(data) || ArrayBuffer.isView(data)) {
+      let str = '';
+      for (let i = 0; i < data.length; i++) str += String.fromCharCode(data[i]);
+      return str;
+    }
+    return String(data);
   }
 
   handleRawDataChunk(chunk) {
