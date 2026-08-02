@@ -318,8 +318,20 @@ export class NikonCommandQueue {
     this.timer = null;
   }
 
-  enqueue(commandStr) {
-    this.queue.push(commandStr);
+  stringToUint8Array(str) {
+    const arr = new Uint8Array(str.length);
+    for (let i = 0; i < str.length; i++) {
+      arr[i] = str.charCodeAt(i);
+    }
+    return arr;
+  }
+
+  formatHexBytes(uint8Arr) {
+    return Array.from(uint8Arr).map(b => '0x' + b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+  }
+
+  enqueue(commandInput) {
+    this.queue.push(commandInput);
     if (!this.isProcessing) {
       this.processNext();
     }
@@ -333,9 +345,26 @@ export class NikonCommandQueue {
 
     this.isProcessing = true;
     const cmd = this.queue.shift();
-    if (this.logFn) this.logFn(`📤 [PACED QUEUE WRITE]: Sending "${cmd.replace(/\r/g, '\\r').replace(/\n/g, '\\n')}"`);
 
-    this.writeFn(cmd, () => {
+    let cmdStr = '';
+    let uint8Arr = null;
+
+    if (typeof cmd === 'string') {
+      cmdStr = cmd;
+      uint8Arr = this.stringToUint8Array(cmd);
+    } else if (Array.isArray(cmd)) {
+      uint8Arr = new Uint8Array(cmd);
+      cmdStr = String.fromCharCode.apply(null, uint8Arr);
+    } else if (cmd instanceof Uint8Array) {
+      uint8Arr = cmd;
+      cmdStr = String.fromCharCode.apply(null, uint8Arr);
+    }
+
+    const hexFormatted = this.formatHexBytes(uint8Arr);
+    if (this.logFn) this.logFn(`📤 [RAW HEX WRITE]: Sending [${hexFormatted}] ("${cmdStr.replace(/\r/g, '\\r').replace(/\n/g, '\\n')}")`);
+
+    // Write raw Uint8Array / ArrayBuffer to bypass UTF-8 encoding sanitization
+    this.writeFn(uint8Arr.buffer, () => {
       if (this.timer) clearTimeout(this.timer);
       this.timer = setTimeout(() => {
         if (this.logFn) this.logFn(`⏱️ [QUEUE TIMEOUT]: 1000ms elapsed. Clearing buffer & pacing next packet...`);
