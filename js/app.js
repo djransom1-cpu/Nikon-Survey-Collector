@@ -246,16 +246,17 @@ class SurveyApp {
         }
 
         if (window.bluetoothSerial) {
-          alert(`📡 Connecting Native Bluetooth SPP to Nikon (${macAddress})...`);
+          this.logBtDebug(`Attempting Bluetooth connection to MAC: ${macAddress}...`);
           window.bluetoothSerial.connect(macAddress, () => {
             this.stopNikonSimulator();
             document.getElementById('connStatusBadge').textContent = '🟢 Live Bluetooth (Nikon SPP)';
             document.getElementById('connStatusBadge').style.color = 'var(--pass-color)';
+            this.logBtDebug(`🟢 CONNECTED to Nikon Total Station (${macAddress}) via Native Bluetooth SPP!`);
             alert("🎯 SUCCESS! Linked to Nikon Total Station over Native Bluetooth SPP!");
 
             this.btRawBuffer = '';
 
-            // Subscribe to raw byte buffer (handles \r, \n, and all line terminators)
+            // 1. Subscribe to Raw Byte Stream
             window.bluetoothSerial.subscribeRawData((data) => {
               const bytes = new Uint8Array(data);
               let str = '';
@@ -264,9 +265,26 @@ class SurveyApp {
               }
               this.handleRawDataChunk(str);
             }, (err) => {
-              console.error("BT Subscribe error:", err);
+              this.logBtDebug(`⚠️ SubscribeRawData error: ${err}`);
             });
+
+            // 2. Subscribe to Newline
+            window.bluetoothSerial.subscribe('\n', (line) => {
+              this.handleNikonRawString(line);
+            }, (err) => {});
+
+            // 3. Fallback Continuous 500ms Polling Reader to drain any unread bytes from RFCOMM buffer
+            if (this.btPollInterval) clearInterval(this.btPollInterval);
+            this.btPollInterval = setInterval(() => {
+              window.bluetoothSerial.read((data) => {
+                if (data && data.length > 0) {
+                  this.handleRawDataChunk(data);
+                }
+              }, (err) => {});
+            }, 500);
+
           }, (err) => {
+            this.logBtDebug(`❌ Bluetooth Connection Failed: ${err}`);
             alert("❌ Bluetooth Connection Failed: " + (err || "Check instrument power & pairing"));
           });
         } else {
@@ -350,8 +368,21 @@ class SurveyApp {
     }
   }
 
+  logBtDebug(msg) {
+    console.log("[BT DEBUG]", msg);
+    const consoleEl = document.getElementById('bt-debug-console');
+    if (consoleEl) {
+      const time = new Date().toLocaleTimeString();
+      const div = document.createElement('div');
+      div.textContent = `[${time}] ${msg}`;
+      consoleEl.prepend(div);
+    }
+  }
+
   handleRawDataChunk(chunk) {
     if (!chunk) return;
+    this.logBtDebug(`📥 RAW BYTES RECEIVED (${chunk.length}): "${chunk.replace(/\r/g, '\\r').replace(/\n/g, '\\n')}"`);
+
     this.btRawBuffer = (this.btRawBuffer || '') + chunk;
 
     // Split incoming stream by \r or \n
@@ -367,11 +398,11 @@ class SurveyApp {
 
   handleNikonRawString(line) {
     if (!line) return;
-    console.log("Nikon Raw BT Stream:", line);
+    this.logBtDebug(`🎯 PARSING STRING: "${line}"`);
 
     const badge = document.getElementById('connStatusBadge');
     if (badge) {
-      badge.textContent = `🟢 Bluetooth Live Shot Received!`;
+      badge.textContent = `🟢 Live Shot Parsed!`;
       badge.style.color = 'var(--pass-color)';
     }
 
@@ -390,6 +421,9 @@ class SurveyApp {
       if (this.currentMode === 'stakeout') {
         this.updateStakeoutGuidance();
       }
+      this.logBtDebug(`✅ MATCHED SHOT: HA=${parsed.HA_deg}°, VA=${parsed.VA_deg}°, SD=${parsed.SD_ft}ft`);
+    } else {
+      this.logBtDebug(`⚠️ RAW STRING DID NOT MATCH NIKON PATTERN: "${line}"`);
     }
   }
 
@@ -499,10 +533,27 @@ class SurveyApp {
 
     // Trigger Nikon Measure Button
     document.getElementById('triggerNikonMeasureBtn').addEventListener('click', () => {
-      const code = document.getElementById('topo-code').value;
-      const HT = parseFloat(document.getElementById('topo-target-ht').value) || 5.0;
-      this.currentReadout = this.engine.generateSimulatedMeasurement(code, HT);
-      this.updateReadoutDisplay();
+      if (window.bluetoothSerial) {
+        this.logBtDebug("📤 Sending remote measure command M\\r\\n & B\\r\\n to total station over Bluetooth...");
+        window.bluetoothSerial.write("M\r\n", () => {
+          this.logBtDebug("✅ Sent command 'M\\r\\n' over Bluetooth");
+        }, (err) => {
+          this.logBtDebug("⚠️ Write error 'M': " + err);
+        });
+
+        setTimeout(() => {
+          window.bluetoothSerial.write("B\r\n", () => {
+            this.logBtDebug("✅ Sent command 'B\\r\\n' over Bluetooth");
+          });
+        }, 200);
+      }
+
+      if (this.simTimer) {
+        const code = document.getElementById('topo-code').value;
+        const HT = parseFloat(document.getElementById('topo-target-ht').value) || 5.0;
+        this.currentReadout = this.engine.generateSimulatedMeasurement(code, HT);
+        this.updateReadoutDisplay();
+      }
     });
 
     // Record Point Button
