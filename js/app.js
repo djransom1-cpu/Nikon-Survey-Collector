@@ -258,11 +258,17 @@ class SurveyApp {
               document.getElementById('connStatusBadge').textContent = '🟢 Live Bluetooth (Nikon SPP)';
               document.getElementById('connStatusBadge').style.color = 'var(--pass-color)';
               this.logBtDebug(`🟢 CONNECTED to Nikon Total Station (${macAddress}) via Native ${isInsecure ? 'Insecure' : 'Secure'} SPP!`);
+              this.logBtDebug(`👂 PURE PASSIVE LISTENER ACTIVE: Zero packet interference. Ready for MSR1/MSR2 shots on total station!`);
               alert(`🎯 SUCCESS! Linked to Nikon Total Station over ${isInsecure ? 'Insecure' : 'Secure'} Bluetooth SPP!`);
 
               this.btRawBuffer = '';
 
-              // 1. Subscribe to Raw Byte Stream
+              if (this.btPollInterval) {
+                clearInterval(this.btPollInterval);
+                this.btPollInterval = null;
+              }
+
+              // Pure Passive Raw Byte Stream Listener
               window.bluetoothSerial.subscribeRawData((data) => {
                 const bytes = new Uint8Array(data);
                 let str = '';
@@ -273,21 +279,6 @@ class SurveyApp {
               }, (err) => {
                 this.logBtDebug(`⚠️ SubscribeRawData error: ${err}`);
               });
-
-              // 2. Subscribe to Newline
-              window.bluetoothSerial.subscribe('\n', (line) => {
-                this.handleNikonRawString(line);
-              }, (err) => {});
-
-              // 3. Fallback Continuous 500ms Polling Reader to drain any unread bytes from RFCOMM buffer
-              if (this.btPollInterval) clearInterval(this.btPollInterval);
-              this.btPollInterval = setInterval(() => {
-                window.bluetoothSerial.read((data) => {
-                  if (data && data.length > 0) {
-                    this.handleRawDataChunk(data);
-                  }
-                }, (err) => {});
-              }, 500);
 
             }, (err) => {
               if (isInsecure) {
@@ -548,18 +539,12 @@ class SurveyApp {
     // Trigger Nikon Measure Button
     document.getElementById('triggerNikonMeasureBtn').addEventListener('click', () => {
       if (window.bluetoothSerial) {
-        this.logBtDebug("📤 Sending remote measure command M\\r\\n & B\\r\\n to total station over Bluetooth...");
+        this.logBtDebug("📤 Sending single measure command 'M\\r\\n' to total station...");
         window.bluetoothSerial.write("M\r\n", () => {
-          this.logBtDebug("✅ Sent command 'M\\r\\n' over Bluetooth");
+          this.logBtDebug("✅ Sent 'M\\r\\n' - Total station measuring...");
         }, (err) => {
-          this.logBtDebug("⚠️ Write error 'M': " + err);
+          this.logBtDebug("⚠️ Write error: " + err);
         });
-
-        setTimeout(() => {
-          window.bluetoothSerial.write("B\r\n", () => {
-            this.logBtDebug("✅ Sent command 'B\\r\\n' over Bluetooth");
-          });
-        }, 200);
       }
 
       if (this.simTimer) {
