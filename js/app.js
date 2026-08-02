@@ -588,6 +588,46 @@ class SurveyApp {
       }
     });
 
+    const sendWakeEnqBtn = document.getElementById('sendWakeEnqBtn');
+    if (sendWakeEnqBtn) {
+      sendWakeEnqBtn.addEventListener('click', () => {
+        if (this.cmdQueue) {
+          this.logBtDebug("⚡ Enqueueing Nikon ENQ Wake Signal (0x05)...");
+          this.cmdQueue.enqueue([0x05]);
+        }
+      });
+    }
+
+    const sendParaniAtoBtn = document.getElementById('sendParaniAtoBtn');
+    if (sendParaniAtoBtn) {
+      sendParaniAtoBtn.addEventListener('click', () => {
+        if (this.cmdQueue) {
+          this.logBtDebug("🔓 Enqueueing Sena/Parani Data Mode Command 'ATO\\r\\n'...");
+          this.cmdQueue.enqueue("ATO\r\n");
+        }
+      });
+    }
+
+    const sendMsr1Btn = document.getElementById('sendMsr1Btn');
+    if (sendMsr1Btn) {
+      sendMsr1Btn.addEventListener('click', () => {
+        if (this.cmdQueue) {
+          this.logBtDebug("🎯 Enqueueing MSR1 Measure Command 'M\\r\\n'...");
+          this.cmdQueue.enqueue("M\r\n");
+        }
+      });
+    }
+
+    const sendMsr2Btn = document.getElementById('sendMsr2Btn');
+    if (sendMsr2Btn) {
+      sendMsr2Btn.addEventListener('click', () => {
+        if (this.cmdQueue) {
+          this.logBtDebug("🎯 Enqueueing MSR2 Measure Command 'B\\r\\n'...");
+          this.cmdQueue.enqueue("B\r\n");
+        }
+      });
+    }
+
     // Record Point Button
     document.getElementById('recordPointBtn').addEventListener('click', () => {
       this.shootAndRecordPoint();

@@ -274,9 +274,17 @@
             </div>
           </div>
 
+          <!-- NIKON QUICK DIAGNOSTIC COMMAND BAR -->
+          <div style="display:flex; gap:0.3rem; margin-top:0.5rem; flex-wrap:wrap;">
+            <button id="sendWakeEnqBtn" class="btn btn-outline" type="button" style="padding:0.25rem 0.4rem; font-size:0.7rem; color:#38bdf8; border-color:#38bdf8;" title="Send ENQ (0x05) Wake Up Signal">⚡ Wake (ENQ)</button>
+            <button id="sendParaniAtoBtn" class="btn btn-outline" type="button" style="padding:0.25rem 0.4rem; font-size:0.7rem; color:#a855f7; border-color:#a855f7;" title="Unlock Sena/Parani Bluetooth Data Mode">🔓 Unlock (ATO)</button>
+            <button id="sendMsr1Btn" class="btn btn-outline" type="button" style="padding:0.25rem 0.4rem; font-size:0.7rem; color:#10b981; border-color:#10b981;">🎯 MSR1 (M)</button>
+            <button id="sendMsr2Btn" class="btn btn-outline" type="button" style="padding:0.25rem 0.4rem; font-size:0.7rem; color:#f59e0b; border-color:#f59e0b;">🎯 MSR2 (B)</button>
+          </div>
+
           <!-- LIVE BLUETOOTH STREAM DEBUG CONSOLE -->
-          <div id="bt-debug-console" style="background:#020617; border:1px solid rgba(59, 130, 246, 0.3); border-radius:6px; padding:0.5rem; font-family:'JetBrains Mono', monospace; font-size:0.75rem; color:#38bdf8; margin-top:0.5rem; max-height:80px; overflow-y:auto; word-break:break-all;">
-            <div>📡 <strong>Bluetooth Stream Console:</strong> Waiting for Nikon total station shot...</div>
+          <div id="bt-debug-console" style="background:#020617; border:1px solid rgba(59, 130, 246, 0.3); border-radius:6px; padding:0.5rem; font-family:'JetBrains Mono', monospace; font-size:0.75rem; color:#38bdf8; margin-top:0.4rem; max-height:90px; overflow-y:auto; word-break:break-all;">
+            <div>📡 <strong>Bluetooth Stream Console:</strong> Linked to Nikon NPL-322+ (00:01:90:EE:43:96)...</div>
           </div>
         </div>
 
