@@ -26,8 +26,10 @@ jobs:
       - name: Install NPM Dependencies
         run: npm install
 
-      - name: Re-generate Capacitor Android Platform
+      - name: Prepare Web Assets & Re-generate Capacitor Android Platform
         run: |
+          mkdir -p www
+          cp -r index.html index.css manifest.json sw.js js icons www/
           rm -rf android
           npx cap add android
           npx cap copy android

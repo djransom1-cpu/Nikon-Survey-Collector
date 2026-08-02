@@ -1,7 +1,7 @@
 {
   "appId": "com.nikonsurvey.app",
   "appName": "Nikon Survey Collector",
-  "webDir": ".",
+  "webDir": "www",
   "bundledWebRuntime": false,
   "server": {
     "androidScheme": "https"
