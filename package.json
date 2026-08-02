@@ -1,0 +1,43 @@
+{
+  "name": "nikon-survey-collector",
+  "version": "1.0.0",
+  "description": "Nikon NPL-322+ Total Station Field Survey Data Collector App for Windows & Android.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win portable"
+  },
+  "keywords": [
+    "nikon",
+    "total station",
+    "surveying",
+    "data collector",
+    "dxf",
+    "topo",
+    "stakeout"
+  ],
+  "author": "Antigravity Engineering",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "28.0.0",
+    "electron-builder": "24.9.0"
+  },
+  "build": {
+    "appId": "com.nikonsurvey.app",
+    "productName": "Nikon Survey Collector",
+    "cscLink": null,
+    "files": [
+      "main.js",
+      "index.html",
+      "index.css",
+      "manifest.json",
+      "sw.js",
+      "icons/**/*",
+      "js/**/*"
+    ],
+    "win": {
+      "target": ["portable", "dir"],
+      "icon": "icons/icon-512.png"
+    }
+  }
+}

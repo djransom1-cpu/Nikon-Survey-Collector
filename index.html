@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="description" content="Nikon NPL-322+ Total Station Data Collector for Field Surveying, Topo Shots, Station Setup, Stakeout & CAD DXF Export on Windows and Android.">
+  <title>Nikon NPL-322+ Total Station Survey Data Collector</title>
+  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  
+  <!-- Stylesheet & Fonts -->
+  <link rel="stylesheet" href="index.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
+</head>
+<body class="dark-theme">
+
+  <!-- TOP APP HEADER -->
+  <header class="app-header">
+    <div class="header-brand">
+      <div class="brand-icon">📐</div>
+      <div>
+        <h1 class="app-title">Nikon NPL-322+ Field Data Collector</h1>
+        <p class="app-subtitle">Job: <span id="activeJobName">DEFAULT_JOB</span> | Station: <span id="activeStationName">OCC-100</span> <span style="color:var(--pass-color); font-weight:600;">🟢 Connected / Ready</span></p>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <button id="connectDeviceBtn" class="btn btn-primary" title="Connect to Nikon NPL-322+ via Bluetooth or Serial COM Port" style="background:#2563eb;">
+        🔌 Connect Total Station
+      </button>
+      <button id="pwaInstallBtn" class="btn btn-primary" title="Install App to Windows / Android" style="display:none; background:#8b5cf6;">
+        📲 Install App
+      </button>
+      <button id="exportDataBtn" class="btn btn-outline" title="Export DXF CAD or CSV Point List">
+        📥 Export DXF / CSV
+      </button>
+      <button id="jobManagerBtn" class="btn btn-outline" title="Manage Survey Jobs">
+        📁 Jobs Manager
+      </button>
+      <button id="themeToggleBtn" class="btn btn-icon" title="Toggle Field Contrast Mode">
+        <span id="themeIcon">🌙</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- DEVICE CONNECTION MODAL -->
+  <div id="connectModal" class="modal-overlay hidden">
+    <div class="modal-container" style="max-width:500px;">
+      <div class="modal-header">
+        <div class="brand-icon" style="background:rgba(37, 99, 235, 0.15); color:var(--primary-color);">🔌</div>
+        <div>
+          <h2 style="font-size:1.3rem; font-weight:700;">Connect Nikon NPL-322+ Total Station</h2>
+          <p style="font-size:0.85rem; color:var(--text-muted);">Establish Serial (RS-232 / USB) or Bluetooth SPP Connection.</p>
+        </div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:1rem; padding-top:1rem;">
+        <div class="form-group">
+          <label for="conn-type">Connection Interface</label>
+          <select id="conn-type" class="form-control">
+            <option value="serial">USB / RS-232 Serial Port (Web Serial API)</option>
+            <option value="bluetooth">Bluetooth SPP Serial (Web Bluetooth)</option>
+            <option value="simulator" selected>⚡ Nikon Instrument Simulator (Demo / Field Test)</option>
+          </select>
+        </div>
+
+        <div class="form-row" id="group-baud-settings">
+          <div class="form-group">
+            <label for="conn-baud">Baud Rate</label>
+            <select id="conn-baud" class="form-control">
+              <option value="9600" selected>9600 baud (Nikon Standard)</option>
+              <option value="4800">4800 baud</option>
+              <option value="19200">19200 baud</option>
+              <option value="38400">38400 baud</option>
+              <option value="115200">115200 baud</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="conn-parity">Parity & Stop Bits</label>
+            <select id="conn-parity" class="form-control">
+              <option value="8-N-1" selected>8 Data, None Parity, 1 Stop (8-N-1)</option>
+              <option value="7-E-1">7 Data, Even Parity, 1 Stop (7-E-1)</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
+          <button id="startConnectBtn" class="btn btn-primary" style="flex:2; padding:0.75rem; font-weight:700;">
+            🚀 Open Connection
+          </button>
+          <button id="closeConnectModalBtn" class="btn btn-outline" style="flex:1; padding:0.75rem;">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EXPORT SELECTION MODAL -->
+  <div id="exportModal" class="modal-overlay hidden">
+    <div class="modal-container" style="max-width:480px;">
+      <div class="modal-header">
+        <div class="brand-icon" style="background:rgba(16, 185, 129, 0.15); color:var(--pass-color);">📥</div>
+        <div>
+          <h2 style="font-size:1.3rem; font-weight:700;">Export Survey Data</h2>
+          <p style="font-size:0.85rem; color:var(--text-muted);">Choose export format for AutoCAD, Civil 3D, or Carlson.</p>
+        </div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:0.85rem; padding-top:1rem;">
+        <button id="exportDxfBtn" class="btn btn-primary" style="padding:0.85rem; display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <div style="font-weight:700; font-size:0.95rem;">📐 Export AutoCAD DXF Drawing (*.dxf)</div>
+            <div style="font-size:0.8rem; color:rgba(255,255,255,0.85);">Includes Point Nodes, Elevation Text, & Code Layers.</div>
+          </div>
+          <span style="font-size:1.2rem;">➔</span>
+        </button>
+
+        <button id="exportCsvBtn" class="btn btn-outline" style="padding:0.85rem; display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <div style="font-weight:700; font-size:0.95rem; color:var(--text-color);">📊 Export P,N,E,Z,Code CSV List (*.csv)</div>
+            <div style="font-size:0.8rem; color:var(--text-muted);">Standard CSV coordinate file for Civil 3D & Excel.</div>
+          </div>
+          <span style="font-size:1.2rem;">➔</span>
+        </button>
+
+        <button id="exportNikonRawBtn" class="btn btn-outline" style="padding:0.85rem; display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <div style="font-weight:700; font-size:0.95rem; color:var(--text-color);">📜 Export Nikon RAW Measurement File (*.raw)</div>
+            <div style="font-size:0.8rem; color:var(--text-muted);">Nikon AP-700 raw observation records.</div>
+          </div>
+          <span style="font-size:1.2rem;">➔</span>
+        </button>
+
+        <button id="closeExportModalBtn" class="btn btn-outline" style="padding:0.5rem; margin-top:0.5rem;">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JOB MANAGER DASHBOARD MODAL -->
+  <div id="jobModal" class="modal-overlay hidden">
+    <div class="modal-container" style="max-width:540px;">
+      <div class="modal-header">
+        <div class="brand-icon">📁</div>
+        <div>
+          <h2 style="font-size:1.3rem; font-weight:700;">Survey Jobs Manager</h2>
+          <p style="font-size:0.85rem; color:var(--text-muted);">Create new survey job or open existing survey database.</p>
+        </div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:1rem; padding-top:1rem;">
+        <!-- NEW JOB FORM -->
+        <form id="newJobForm" style="display:flex; flex-direction:column; gap:0.75rem; background:rgba(30, 41, 59, 0.5); padding:0.85rem; border-radius:8px; border:1px solid var(--panel-border);">
+          <div style="font-weight:700; font-size:0.9rem; color:var(--accent-color);">➕ Create New Survey Job</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="job-name">Job Name / Title *</label>
+              <input type="text" id="job-name" class="form-control" placeholder="e.g. BOUNDARY_JOB_01" required>
+            </div>
+            <div class="form-group">
+              <label for="job-surveyor">Surveyor Name / Crew</label>
+              <input type="text" id="job-surveyor" class="form-control" placeholder="e.g. D. Ransom, PLS">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="job-units">Distance Units</label>
+              <select id="job-units" class="form-control">
+                <option value="US_FT" selected>US Survey Feet (ft)</option>
+                <option value="INT_FT">International Feet (ft)</option>
+                <option value="METERS">Meters (m)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="job-start-pt">Starting Point ID #</label>
+              <input type="number" id="job-start-pt" class="form-control" value="100" min="1">
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary" style="padding:0.6rem; font-size:0.9rem;">🚀 Create & Open Job</button>
+        </form>
+
+        <!-- RECENT JOBS LIST -->
+        <div style="font-weight:700; font-size:0.9rem; color:var(--text-color);">Saved Jobs Library:</div>
+        <div id="jobsList" style="display:flex; flex-direction:column; gap:0.5rem; max-height:200px; overflow-y:auto;">
+          <!-- Dynamically populated by JS -->
+        </div>
+
+        <button id="closeJobModalBtn" class="btn btn-outline" style="padding:0.5rem;">Close Manager</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN FIELD WORKSPACE LAYOUT -->
+  <main class="field-container">
+    
+    <!-- LEFT PANEL: SURVEY CONTROLS & FIELD MODES -->
+    <section class="field-panel input-panel">
+      
+      <!-- MODE SELECTION TABS -->
+      <nav class="mode-tabs">
+        <button class="mode-tab active" data-mode="topo">
+          <span class="tab-icon">📍</span> Topo / Side Shot
+        </button>
+        <button class="mode-tab" data-mode="setup">
+          <span class="tab-icon">🎯</span> Station Setup
+        </button>
+        <button class="mode-tab" data-mode="stakeout">
+          <span class="tab-icon">🚩</span> Stakeout Layout
+        </button>
+        <button class="mode-tab" data-mode="points">
+          <span class="tab-icon">📊</span> Points Table
+        </button>
+      </nav>
+
+      <!-- MODE 1: TOPO / SIDE SHOTS (FIELD DATA ENTRY) -->
+      <div id="mode-topo" class="mode-content active">
+        
+        <!-- LIVE NIKON MEASUREMENT DISPLAY CARD -->
+        <div class="measurement-card">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:0.8rem; font-weight:700; color:var(--accent-color);">NIKON NPL-322+ LIVE ANGLES & DISTANCE</span>
+            <button id="triggerNikonMeasureBtn" class="btn btn-outline" style="padding:0.25rem 0.5rem; font-size:0.75rem; color:#10b981; border-color:#10b981;">⚡ Trigger Shoot</button>
+          </div>
+          
+          <div class="readout-grid">
+            <div class="readout-box">
+              <div class="readout-label">Horizontal Angle (HA)</div>
+              <div class="readout-val" id="disp-ha">124° 35' 12"</div>
+            </div>
+            <div class="readout-box">
+              <div class="readout-label">Vertical Angle (VA)</div>
+              <div class="readout-val" id="disp-va">88° 12' 40"</div>
+            </div>
+            <div class="readout-box">
+              <div class="readout-label">Slope Distance (SD)</div>
+              <div class="readout-val" id="disp-sd">145.820 ft</div>
+            </div>
+            <div class="readout-box">
+              <div class="readout-label">Horizontal Dist (HD)</div>
+              <div class="readout-val" id="disp-hd" style="color:var(--pass-color);">145.750 ft</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- POINT DATA RECORD FORM -->
+        <div style="display:flex; flex-direction:column; gap:0.75rem; margin-top:0.75rem;">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="topo-pt-id">Point ID #</label>
+              <input type="number" id="topo-pt-id" class="form-control" value="101" min="1" style="font-size:1.1rem; font-weight:700;">
+            </div>
+            <div class="form-group">
+              <label for="topo-target-ht">Target / Rod Height (HT) (ft)</label>
+              <input type="number" id="topo-target-ht" class="form-control" value="5.00" step="0.01" style="font-size:1.1rem; font-weight:700;">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="topo-code">Feature Code / Descriptor</label>
+            <div style="display:flex; gap:0.5rem;">
+              <select id="topo-code" class="form-control" style="font-size:1rem; font-weight:600; flex:2;">
+                <option value="MON">MON - Property / Survey Monument</option>
+                <option value="CORNER">CORNER - Building / Property Corner</option>
+                <option value="EP" selected>EP - Edge of Pavement</option>
+                <option value="CL">CL - Centerline of Road</option>
+                <option value="TREE">TREE - Tree Center</option>
+                <option value="UTIL">UTIL - Utility Vault / Pole</option>
+                <option value="WALL">WALL - Retaining Wall / Fence</option>
+                <option value="BM">BM - Benchmark / Control</option>
+                <option value="CUSTOM">CUSTOM - Enter Custom Code...</option>
+              </select>
+              <input type="text" id="topo-code-custom" class="form-control" placeholder="Custom Code" style="display:none; flex:1;">
+            </div>
+          </div>
+
+          <!-- QUICK FEATURE CODE CHIPS -->
+          <div class="code-chips">
+            <button class="chip-btn active" data-code="MON">MON</button>
+            <button class="chip-btn" data-code="CORNER">CORNER</button>
+            <button class="chip-btn" data-code="EP">EP</button>
+            <button class="chip-btn" data-code="CL">CL</button>
+            <button class="chip-btn" data-code="TREE">TREE</button>
+            <button class="chip-btn" data-code="UTIL">UTIL</button>
+            <button class="chip-btn" data-code="BM">BM</button>
+          </div>
+
+          <!-- HUGE ACTION RECORD BUTTON -->
+          <button id="recordPointBtn" class="btn btn-primary" style="padding:1rem; font-size:1.2rem; font-weight:800; background:var(--pass-color); border-color:var(--pass-color); margin-top:0.5rem; text-transform:uppercase; letter-spacing:0.05em;">
+            📸 Shoot & Record Point
+          </button>
+        </div>
+
+      </div>
+
+      <!-- MODE 2: STATION SETUP & BACKSIGHT ORIENTATION -->
+      <div id="mode-setup" class="mode-content">
+        <h3 style="font-size:1.1rem; font-weight:700; color:var(--primary-color); margin-bottom:0.5rem;">Instrument Station & Backsight Setup</h3>
+        <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1rem;">Occupy a known control point or assume station coordinates and orient backsight.</p>
+
+        <!-- OCCUPIED STATION -->
+        <div style="background:rgba(30, 41, 59, 0.5); padding:0.85rem; border-radius:8px; border:1px solid var(--panel-border); display:flex; flex-direction:column; gap:0.75rem;">
+          <div style="font-weight:700; font-size:0.85rem; color:var(--accent-color);">1. Occupied Instrument Station (Occ Point)</div>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label for="occ-pt-id">Station Point ID</label>
+              <input type="text" id="occ-pt-id" class="form-control" value="100">
+            </div>
+            <div class="form-group">
+              <label for="occ-hi">Instrument Height (HI) (ft)</label>
+              <input type="number" id="occ-hi" class="form-control" value="5.25" step="0.01">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="occ-northing">Northing N (ft)</label>
+              <input type="number" id="occ-northing" class="form-control" value="5000.000" step="0.001">
+            </div>
+            <div class="form-group">
+              <label for="occ-easting">Easting E (ft)</label>
+              <input type="number" id="occ-easting" class="form-control" value="5000.000" step="0.001">
+            </div>
+            <div class="form-group">
+              <label for="occ-elevation">Elevation Z (ft)</label>
+              <input type="number" id="occ-elevation" class="form-control" value="100.000" step="0.001">
+            </div>
+          </div>
+        </div>
+
+        <!-- BACKSIGHT ORIENTATION -->
+        <div style="background:rgba(30, 41, 59, 0.5); padding:0.85rem; border-radius:8px; border:1px solid var(--panel-border); display:flex; flex-direction:column; gap:0.75rem; margin-top:0.75rem;">
+          <div style="font-weight:700; font-size:0.85rem; color:var(--primary-color);">2. Backsight Reference Point / Azimuth</div>
+          
+          <div class="form-group">
+            <label for="bs-mode">Backsight Method</label>
+            <select id="bs-mode" class="form-control">
+              <option value="coord" selected>Backsight by Known Point Coordinates</option>
+              <option value="azimuth">Backsight by Known Azimuth Angle (e.g. 0°00'00" North)</option>
+            </select>
+          </div>
+
+          <div id="group-bs-coord" class="form-row">
+            <div class="form-group">
+              <label for="bs-pt-id">BS Point ID</label>
+              <input type="text" id="bs-pt-id" class="form-control" value="99">
+            </div>
+            <div class="form-group">
+              <label for="bs-northing">BS Northing N (ft)</label>
+              <input type="number" id="bs-northing" class="form-control" value="5150.000" step="0.001">
+            </div>
+            <div class="form-group">
+              <label for="bs-easting">BS Easting E (ft)</label>
+              <input type="number" id="bs-easting" class="form-control" value="5000.000" step="0.001">
+            </div>
+          </div>
+
+          <div id="group-bs-azimuth" class="form-group" style="display:none;">
+            <label for="bs-az-deg">Reference Azimuth (Degrees)</label>
+            <input type="number" id="bs-az-deg" class="form-control" value="0.0000" step="0.0001" placeholder="e.g. 0.0000 for North">
+          </div>
+
+          <button id="setStationBtn" class="btn btn-primary" style="padding:0.75rem; font-weight:700; background:var(--primary-color);">
+            🎯 Set Station & Calibrate Circle
+          </button>
+        </div>
+
+      </div>
+
+      <!-- MODE 3: STAKEOUT LAYOUT (CONSTRUCTION NAVIGATION) -->
+      <div id="mode-stakeout" class="mode-content">
+        <h3 style="font-size:1.1rem; font-weight:700; color:var(--warn-color); margin-bottom:0.5rem;">Construction Point Stakeout</h3>
+        <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:0.75rem;">Navigate rodman to design coordinates with real-time turn & cut/fill guidance.</p>
+
+        <div class="form-group">
+          <label for="stake-target-select">Select Target Point to Stake Out</label>
+          <select id="stake-target-select" class="form-control" style="font-weight:700; font-size:1rem;"></select>
+        </div>
+
+        <!-- STAKEOUT NAVIGATION GUIDANCE CARD -->
+        <div style="background:rgba(234, 179, 8, 0.08); border:1px solid rgba(234, 179, 8, 0.3); border-radius:8px; padding:1rem; display:flex; flex-direction:column; gap:0.75rem; margin-top:0.5rem;">
+          
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:0.85rem; font-weight:700; color:var(--warn-color);">FIELD NAVIGATION DIRECTIONS</span>
+            <span id="stake-status-badge" style="font-size:0.75rem; background:rgba(234, 179, 8, 0.2); color:var(--warn-color); padding:0.2rem 0.5rem; border-radius:4px; font-weight:700;">ON TARGET SCAN</span>
+          </div>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+            <div class="readout-box" style="background:rgba(0,0,0,0.3);">
+              <div class="readout-label">Angle Turn ΔHA</div>
+              <div class="readout-val" id="stake-turn" style="color:var(--warn-color); font-size:1.2rem;">TURN RIGHT 02°15'10"</div>
+            </div>
+            <div class="readout-box" style="background:rgba(0,0,0,0.3);">
+              <div class="readout-label">Distance Delta ΔHD</div>
+              <div class="readout-val" id="stake-dist" style="color:var(--text-color); font-size:1.2rem;">GO FORWARD 4.25 ft</div>
+            </div>
+          </div>
+
+          <div class="readout-box" style="background:rgba(0,0,0,0.3);">
+            <div class="readout-label">Vertical Elevation Cut / Fill</div>
+            <div class="readout-val" id="stake-cutfill" style="color:#10b981; font-size:1.3rem; font-weight:800;">CUT 0.14 ft (LOWER ROD)</div>
+          </div>
+        </div>
+
+        <button id="storeStakePointBtn" class="btn btn-primary" style="padding:0.75rem; font-weight:700; background:var(--warn-color); border-color:var(--warn-color); color:#000; margin-top:0.75rem;">
+          🚩 Store As-Built Staked Point
+        </button>
+
+      </div>
+
+      <!-- MODE 4: POINTS DATABASE TABLE -->
+      <div id="mode-points" class="mode-content">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+          <h3 style="font-size:1.1rem; font-weight:700; margin:0;">Point Database Grid</h3>
+          <button id="addManualPointBtn" class="btn btn-outline" style="padding:0.3rem 0.6rem; font-size:0.8rem;">+ Add Point</button>
+        </div>
+
+        <div style="max-height:420px; overflow-y:auto; border:1px solid var(--panel-border); border-radius:6px;">
+          <table class="points-table">
+            <thead>
+              <tr>
+                <th>PT #</th>
+                <th>Northing (N)</th>
+                <th>Easting (E)</th>
+                <th>Elev (Z)</th>
+                <th>Code</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="pointsTableBody">
+              <!-- Dynamically populated by JS app.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- RIGHT PANEL: INTERACTIVE 2D CAD CANVAS VIEW -->
+    <section class="field-panel output-panel">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+        <h3 style="font-size:1.1rem; font-weight:700; font-family:var(--font-heading); margin:0;">Interactive Field CAD Map</h3>
+        <div style="display:flex; gap:0.4rem;">
+          <button id="cadZoomInBtn" class="btn btn-outline" style="padding:0.25rem 0.5rem;">🔍 +</button>
+          <button id="cadZoomOutBtn" class="btn btn-outline" style="padding:0.25rem 0.5rem;">🔍 -</button>
+          <button id="cadZoomExtentsBtn" class="btn btn-outline" style="padding:0.25rem 0.5rem;">🎯 Extents</button>
+        </div>
+      </div>
+
+      <div class="canvas-wrapper" style="flex:1; min-height:450px; position:relative;">
+        <canvas id="surveyCanvas"></canvas>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Scripts -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
