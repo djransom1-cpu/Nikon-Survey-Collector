@@ -253,8 +253,16 @@ class SurveyApp {
             document.getElementById('connStatusBadge').style.color = 'var(--pass-color)';
             alert("🎯 SUCCESS! Linked to Nikon Total Station over Native Bluetooth SPP!");
 
-            window.bluetoothSerial.subscribe('\n', (data) => {
-              this.handleNikonRawString(data);
+            this.btRawBuffer = '';
+
+            // Subscribe to raw byte buffer (handles \r, \n, and all line terminators)
+            window.bluetoothSerial.subscribeRawData((data) => {
+              const bytes = new Uint8Array(data);
+              let str = '';
+              for (let i = 0; i < bytes.length; i++) {
+                str += String.fromCharCode(bytes[i]);
+              }
+              this.handleRawDataChunk(str);
             }, (err) => {
               console.error("BT Subscribe error:", err);
             });
@@ -340,6 +348,21 @@ class SurveyApp {
         this.handleNikonRawString(line);
       });
     }
+  }
+
+  handleRawDataChunk(chunk) {
+    if (!chunk) return;
+    this.btRawBuffer = (this.btRawBuffer || '') + chunk;
+
+    // Split incoming stream by \r or \n
+    const lines = this.btRawBuffer.split(/[\r\n]+/);
+    this.btRawBuffer = lines.pop(); // Retain incomplete line fragment
+
+    lines.forEach(line => {
+      if (line.trim().length > 0) {
+        this.handleNikonRawString(line.trim());
+      }
+    });
   }
 
   handleNikonRawString(line) {
