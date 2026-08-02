@@ -204,34 +204,63 @@ class SurveyApp {
     document.getElementById('connectDeviceBtn').addEventListener('click', () => connModal.classList.remove('hidden'));
     document.getElementById('closeConnectModalBtn').addEventListener('click', () => connModal.classList.add('hidden'));
 
+    const stopSimBtn = document.getElementById('stopSimModalBtn');
+    if (stopSimBtn) {
+      stopSimBtn.addEventListener('click', () => {
+        this.stopNikonSimulator();
+        alert("🛑 Simulator Mode Turned OFF!");
+        connModal.classList.add('hidden');
+      });
+    }
+
     document.getElementById('startConnectBtn').addEventListener('click', async () => {
       const connType = document.getElementById('conn-type').value;
 
-      if (connType === 'serial' && 'serial' in navigator) {
-        try {
-          // Request Web Serial Port (works for both USB cable COM ports & Bluetooth Virtual COM ports!)
-          const port = await navigator.serial.requestPort();
-          await port.open({ baudRate: parseInt(document.getElementById('conn-baud').value) || 9600 });
-          
-          if (this.simTimer) clearInterval(this.simTimer);
-          
-          document.getElementById('connStatusBadge').textContent = '🟢 Connected Live';
-          document.getElementById('connStatusBadge').style.color = 'var(--pass-color)';
-          alert("🔌 Connected to Nikon Total Station Serial / Bluetooth COM Port!");
-
-          this.readSerialStream(port);
-        } catch(err) {
-          alert("⚠️ Serial Connection Notice: " + err.message);
+      if (connType === 'disconnect') {
+        this.stopNikonSimulator();
+        if (this.activePort) {
+          try { await this.activePort.close(); } catch(e){}
+          this.activePort = null;
         }
-      } else if (connType === 'ble' && 'bluetooth' in navigator) {
-        try {
-          const device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true });
-          alert(`📶 Bluetooth BLE Device Linked: ${device.name}`);
-        } catch(err) {
-          alert("⚠️ Web Bluetooth BLE restricts classic SPP total stations. Use 'Serial Port (USB / Bluetooth COM)' to connect to your paired Bluetooth COM port!");
+        alert("🛑 Disconnected from all instruments & Simulator turned OFF.");
+        connModal.classList.add('hidden');
+        return;
+      }
+
+      if (connType === 'serial') {
+        if ('serial' in navigator) {
+          try {
+            // Request Web Serial Port (works for both USB cable COM ports & Bluetooth Virtual COM ports!)
+            const port = await navigator.serial.requestPort();
+            await port.open({ baudRate: parseInt(document.getElementById('conn-baud').value) || 9600 });
+            
+            this.stopNikonSimulator();
+            this.activePort = port;
+            
+            document.getElementById('connStatusBadge').textContent = '🟢 Connected Live';
+            document.getElementById('connStatusBadge').style.color = 'var(--pass-color)';
+            alert("🔌 Connected to Nikon Total Station Serial / Bluetooth COM Port!");
+
+            this.readSerialStream(port);
+          } catch(err) {
+            alert("⚠️ Serial Connection Notice: " + err.message);
+          }
+        } else {
+          alert("⚠️ Web Serial API is not supported in this browser environment. For Android tablets, make sure you are using Chrome or native Bluetooth serial mode.");
+        }
+      } else if (connType === 'ble') {
+        if ('bluetooth' in navigator) {
+          try {
+            const device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true });
+            alert(`📶 Bluetooth BLE Device Linked: ${device.name}`);
+          } catch(err) {
+            alert("⚠️ Web Bluetooth BLE restricts classic SPP total stations. Use 'Serial Port (USB / Bluetooth COM)' to connect to your paired Bluetooth COM port!");
+          }
+        } else {
+          alert("⚠️ Web Bluetooth API is not supported in this browser.");
         }
       } else {
-        document.getElementById('connStatusBadge').textContent = '⚡ Simulator Mode';
+        this.startNikonSimulator();
         alert("⚡ Operating in Nikon NPL-322+ Field Simulator Mode!");
       }
 
@@ -334,6 +363,11 @@ class SurveyApp {
   }
 
   setupEventListeners() {
+    const toggleSimBtn = document.getElementById('toggleSimBtn');
+    if (toggleSimBtn) {
+      toggleSimBtn.addEventListener('click', () => this.toggleNikonSimulator());
+    }
+
     // Trigger Nikon Measure Button
     document.getElementById('triggerNikonMeasureBtn').addEventListener('click', () => {
       const code = document.getElementById('topo-code').value;
@@ -442,6 +476,7 @@ class SurveyApp {
   }
 
   startNikonSimulator() {
+    this.stopNikonSimulator();
     this.simTimer = setInterval(() => {
       const code = document.getElementById('topo-code').value;
       const HT = parseFloat(document.getElementById('topo-target-ht').value) || 5.0;
@@ -451,6 +486,49 @@ class SurveyApp {
         this.updateStakeoutGuidance();
       }
     }, 2000);
+
+    const toggleBtn = document.getElementById('toggleSimBtn');
+    if (toggleBtn) {
+      toggleBtn.textContent = '⚡ Sim: ON';
+      toggleBtn.style.color = '#eab308';
+      toggleBtn.style.borderColor = '#eab308';
+    }
+
+    const badge = document.getElementById('connStatusBadge');
+    if (badge) {
+      badge.textContent = '⚡ Simulator Mode';
+      badge.style.color = 'var(--accent-color)';
+    }
+  }
+
+  stopNikonSimulator() {
+    if (this.simTimer) {
+      clearInterval(this.simTimer);
+      this.simTimer = null;
+    }
+
+    const toggleBtn = document.getElementById('toggleSimBtn');
+    if (toggleBtn) {
+      toggleBtn.textContent = '🛑 Sim: OFF';
+      toggleBtn.style.color = 'var(--text-muted)';
+      toggleBtn.style.borderColor = 'var(--panel-border)';
+    }
+
+    const badge = document.getElementById('connStatusBadge');
+    if (badge && !this.activePort) {
+      badge.textContent = '🔴 Disconnected';
+      badge.style.color = 'var(--fail-color)';
+    }
+  }
+
+  toggleNikonSimulator() {
+    if (this.simTimer) {
+      this.stopNikonSimulator();
+      alert("🛑 Nikon Instrument Simulator Turned OFF.");
+    } else {
+      this.startNikonSimulator();
+      alert("⚡ Nikon Instrument Simulator Turned ON.");
+    }
   }
 
   updateReadoutDisplay() {

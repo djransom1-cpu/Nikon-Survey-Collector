@@ -75,6 +75,7 @@
             <option value="serial" selected>🔌 Serial Port (USB Cable OR Paired Bluetooth COM Port)</option>
             <option value="ble">📶 Bluetooth Low Energy (BLE Scanner)</option>
             <option value="simulator">⚡ Nikon Instrument Simulator (Demo Mode)</option>
+            <option value="disconnect">🛑 Disconnect All / Turn OFF Simulator</option>
           </select>
         </div>
 
@@ -100,7 +101,10 @@
 
         <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
           <button id="startConnectBtn" class="btn btn-primary" style="flex:2; padding:0.75rem; font-weight:700;">
-            🚀 Select Port & Connect
+            🚀 Open Connection
+          </button>
+          <button id="stopSimModalBtn" class="btn btn-outline" style="flex:1.5; padding:0.75rem; color:var(--fail-color); border-color:var(--fail-color);">
+            🛑 Turn Off Sim
           </button>
           <button id="closeConnectModalBtn" class="btn btn-outline" style="flex:1; padding:0.75rem;">Cancel</button>
         </div>
@@ -229,9 +233,12 @@
         
         <!-- LIVE NIKON MEASUREMENT DISPLAY CARD -->
         <div class="measurement-card">
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <span style="font-size:0.8rem; font-weight:700; color:var(--accent-color);">NIKON NPL-322+ LIVE ANGLES & DISTANCE</span>
-            <button id="triggerNikonMeasureBtn" class="btn btn-outline" style="padding:0.25rem 0.5rem; font-size:0.75rem; color:#10b981; border-color:#10b981;">⚡ Trigger Shoot</button>
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.4rem;">
+            <span style="font-size:0.8rem; font-weight:700; color:var(--accent-color);">NIKON NPL-322+ LIVE READOUT</span>
+            <div style="display:flex; gap:0.4rem;">
+              <button id="toggleSimBtn" class="btn btn-outline" style="padding:0.25rem 0.5rem; font-size:0.75rem; color:#eab308; border-color:#eab308;" title="Turn Simulator Mode ON or OFF">⚡ Sim: ON</button>
+              <button id="triggerNikonMeasureBtn" class="btn btn-outline" style="padding:0.25rem 0.5rem; font-size:0.75rem; color:#10b981; border-color:#10b981;">🎯 Manual Shoot</button>
+            </div>
           </div>
           
           <div class="readout-grid">
