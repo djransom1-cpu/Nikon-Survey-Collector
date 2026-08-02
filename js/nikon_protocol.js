@@ -299,3 +299,63 @@ export class NikonProtocolEngine {
     };
   }
 }
+
+/**
+ * Synchronous Command Queue for Total Station Hardware Pacing
+ * Enforces:
+ * - 150ms inter-packet delay for UART buffer clearing
+ * - Synchronous ACK/Response handshaking before next packet
+ * - 1000ms timeout handling for heavy EDM measurement cycles
+ */
+export class NikonCommandQueue {
+  constructor(writeFn, logFn) {
+    this.writeFn = writeFn;
+    this.logFn = logFn;
+    this.queue = [];
+    this.isProcessing = false;
+    this.interPacketDelayMs = 150; // 150ms UART clear delay
+    this.responseTimeoutMs = 1000; // 1000ms EDM timeout
+    this.timer = null;
+  }
+
+  enqueue(commandStr) {
+    this.queue.push(commandStr);
+    if (!this.isProcessing) {
+      this.processNext();
+    }
+  }
+
+  processNext() {
+    if (this.queue.length === 0) {
+      this.isProcessing = false;
+      return;
+    }
+
+    this.isProcessing = true;
+    const cmd = this.queue.shift();
+    if (this.logFn) this.logFn(`📤 [PACED QUEUE WRITE]: Sending "${cmd.replace(/\r/g, '\\r').replace(/\n/g, '\\n')}"`);
+
+    this.writeFn(cmd, () => {
+      if (this.timer) clearTimeout(this.timer);
+      this.timer = setTimeout(() => {
+        if (this.logFn) this.logFn(`⏱️ [QUEUE TIMEOUT]: 1000ms elapsed. Clearing buffer & pacing next packet...`);
+        this.finishCommand();
+      }, this.responseTimeoutMs);
+    });
+  }
+
+  onResponseReceived() {
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
+    if (this.logFn) this.logFn(`📥 [QUEUE ACK]: Response received. Enforcing 150ms buffer clear delay...`);
+    this.finishCommand();
+  }
+
+  finishCommand() {
+    setTimeout(() => {
+      this.processNext();
+    }, this.interPacketDelayMs);
+  }
+}

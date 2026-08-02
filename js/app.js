@@ -3,7 +3,7 @@
  * Master Controller & Application State Engine
  */
 
-import { NikonProtocolEngine } from './nikon_protocol.js';
+import { NikonProtocolEngine, NikonCommandQueue } from './nikon_protocol.js';
 import { SurveyCadRenderer } from './survey_cad.js';
 import { DxfExporter } from './dxf_exporter.js';
 
@@ -258,10 +258,18 @@ class SurveyApp {
               document.getElementById('connStatusBadge').textContent = '🟢 Live Bluetooth (Nikon SPP)';
               document.getElementById('connStatusBadge').style.color = 'var(--pass-color)';
               this.logBtDebug(`🟢 CONNECTED to Nikon Total Station (${macAddress}) via Native ${isInsecure ? 'Insecure' : 'Secure'} SPP!`);
-              this.logBtDebug(`👂 PURE PASSIVE LISTENER ACTIVE: Zero packet interference. Ready for MSR1/MSR2 shots on total station!`);
+              this.logBtDebug(`⏱️ SYNCHRONOUS COMMAND QUEUE ACTIVE: Paced 150ms inter-packet delay & 1000ms ACK handshaking.`);
               alert(`🎯 SUCCESS! Linked to Nikon Total Station over ${isInsecure ? 'Insecure' : 'Secure'} Bluetooth SPP!`);
 
               this.btRawBuffer = '';
+              this.cmdQueue = new NikonCommandQueue((data, cb) => {
+                if (window.bluetoothSerial) {
+                  window.bluetoothSerial.write(data, cb, (err) => {
+                    this.logBtDebug(`⚠️ Write error: ${err}`);
+                    if (cb) cb();
+                  });
+                }
+              }, (msg) => this.logBtDebug(msg));
 
               if (this.btPollInterval) {
                 clearInterval(this.btPollInterval);
@@ -405,6 +413,10 @@ class SurveyApp {
     if (!line) return;
     this.logBtDebug(`🎯 PARSING STRING: "${line}"`);
 
+    if (this.cmdQueue) {
+      this.cmdQueue.onResponseReceived();
+    }
+
     const badge = document.getElementById('connStatusBadge');
     if (badge) {
       badge.textContent = `🟢 Live Shot Parsed!`;
@@ -538,13 +550,9 @@ class SurveyApp {
 
     // Trigger Nikon Measure Button
     document.getElementById('triggerNikonMeasureBtn').addEventListener('click', () => {
-      if (window.bluetoothSerial) {
-        this.logBtDebug("📤 Sending single measure command 'M\\r\\n' to total station...");
-        window.bluetoothSerial.write("M\r\n", () => {
-          this.logBtDebug("✅ Sent 'M\\r\\n' - Total station measuring...");
-        }, (err) => {
-          this.logBtDebug("⚠️ Write error: " + err);
-        });
+      if (this.cmdQueue) {
+        this.logBtDebug("📤 Enqueueing paced measure command 'M\\r\\n' (150ms buffer clear + 1000ms ACK timeout)...");
+        this.cmdQueue.enqueue("M\r\n");
       }
 
       if (this.simTimer) {
